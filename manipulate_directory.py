@@ -2,11 +2,14 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-from manipulate_images import errors
+from manipulate_images import get_gps_location, errors
 
 
-def save_by_date(target, image_path, image_data, year, date):
-    '''Saves photo according to the date taken.'''
+def save_by_date(image_path, image_data, target):
+    """Saves photo according to the date taken."""
+    date = str(datetime.strptime(image_data['datetime_original'], '%Y:%m:%d %H:%M:%S').date())
+    year = str(datetime.strptime(image_data['datetime_original'], '%Y:%m:%d %H:%M:%S').year)
+
     year_dir = target / year
 
     if not year_dir.exists():
@@ -18,14 +21,16 @@ def save_by_date(target, image_path, image_data, year, date):
         image_path.rename(target_path)
 
 
-def save_by_location(image_path, image_data, location_dir, year, date):
-    '''Saves photo according to the location.'''
+def save_by_location(image_path, image_data, target):
+    """Saves photo according to the location."""
+    location = get_gps_location(image_data['gps_latitude'], image_data['gps_latitude_ref'], image_data['gps_longitude'], image_data['gps_longitude_ref'])
+    date = str(datetime.strptime(image_data['datetime_original'], '%Y:%m:%d %H:%M:%S').date())
+    year = str(datetime.strptime(image_data['datetime_original'], '%Y:%m:%d %H:%M:%S').year)
 
-    year_dir = location_dir / year 
+    location_dir = target / (location['country'] + '-' + location['city'])
+    year_dir = location_dir / year    
 
-    if not location_dir.exists():
-        year_dir.mkdir(parents=True)
-    if not year_dir.exists():
+    if not location_dir.exists() or not year_dir.exists():
         year_dir.mkdir(parents=True)
 
     target_path = year_dir / (date + '_' + image_path.stem)
@@ -33,16 +38,3 @@ def save_by_location(image_path, image_data, location_dir, year, date):
         errors['same_files'].append(image_path.stem)
     else:
         image_path.rename(target_path)
-
-
-def define_type_of_archive(source, target, exif_data):
-    '''Defines wether the photo will be archived by date or by location (according to the existing metadata).'''
-
-    for image_path, image_data in exif_data.items():
-        date = str(datetime.strptime(image_data['date'], '%Y:%m:%d %H:%M:%S').date())
-        year = str(datetime.strptime(image_data['date'], '%Y:%m:%d %H:%M:%S').year)
-        if image_data.get('country') is not None and image_data.get('city') is not None:
-            location_dir = target / (image_data['country'] + '-' + image_data['city'])
-            save_by_location(image_path, image_data, location_dir, year, date)
-        else:
-            save_by_date(target, image_path, image_data, year, date)

@@ -1,26 +1,38 @@
 import sys
 from pathlib import Path
 
-from manipulate_images import list_images_paths, fetch_exif_data, read_images, errors
-from manipulate_directory import define_type_of_archive
+from exif import Image
+
+from manipulate_images import list_image_paths, is_image, fetch_exif_data, filter_exif_data, errors
+from manipulate_directory import save_by_date, save_by_location
 
 
 if __name__ == '__main__':
+
     source = Path(input('Give source path of photos: ')).resolve()
-    if not source.exists():
-        sys.exit('Wrong path.')
-    
-    images_paths = list_images_paths(source)
-    if not images_paths:
+    target = Path(input('Give target path for photos: ')).resolve()
+    if not source.exists() or not target.exists():
         sys.exit(errors)
     
-    images_objs = read_images(images_paths)
-    exif_data = fetch_exif_data(images_objs)
+    images_paths = list_image_paths(source)
+    if not images_paths:
+        errors['no_files'] = True
+        sys.exit(errors)
 
-    while True:
-        target = Path(input('Give target path for photos: ')).resolve()
-        if not target.exists():
-            continue
+    for image_path in images_paths:
+        if is_image(image_path):
+            with open(image_path, 'rb') as image_file:
+                img_obj = Image(image_file)
+                if img_obj.has_exif:
+                    exif_data = fetch_exif_data(img_obj)
+                    filtered_exif_data = filter_exif_data(exif_data)
+                    if filtered_exif_data.get('gps_latitude') and filtered_exif_data.get('gps_longitude'):
+                        save_by_location(image_path, filtered_exif_data, target)
+                    else:
+                        save_by_date(image_path, filtered_exif_data, target)
+                else:
+                    errors['no_exif_data'].append(image_path)
         else:
-            define_type_of_archive(source, target, exif_data)
-            break
+            errors['wrong_file_format'].append(image_path.stem)
+    
+    print(errors)
